@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RemittEase - Wallet Onboarding & Registration</title>
+
+    <!-- Add XRPL.js CDN -->
+    <script src="https://unpkg.com/xrpl/dist/xrpl.min.js"></script>
+    <!-- Add MoonPay SDK -->
+    <script defer src="https://static.moonpay.com/web-sdk/v1/moonpay-web-sdk.min.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        h1 {
+            font-size: 36px;
+            color: #e63946; /* Red from the logo */
+        }
+        h2 {
+            font-size: 24px;
+            color: #457b9d; /* Blue from the logo */
+        }
+        p {
+            color: #333;
+        }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .logo {
+            width: 300px;
+            margin: 20px auto;
+        }
+        .wallet-info {
+            margin-top: 20px;
+        }
+        .wallet-info pre {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: left;
+        }
+        .section {
+            margin-bottom: 20px;
+        }
+    </style>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const registerButton = document.getElementById('register-user');
+            const existingUserButton = document.getElementById('existing-user');
+            const depositButton = document.getElementById('deposit-funds');
+            const depositCardButton = document.getElementById('deposit-card-funds');
+            const sendReceiveButton = document.getElementById('send-receive-now');
+            const walletInfoSection = document.getElementById('wallet-info');
+            const walletAddressElement = document.getElementById('wallet-address');
+            const walletBalanceElement = document.getElementById('wallet-balance');
+            const walletSecretElement = document.getElementById('wallet-secret');
+            let userData = {};
+
+            // Function to gather user details for registration
+            function getUserDetails() {
+                const name = document.getElementById('name').value;
+                const surname = document.getElementById('surname').value;
+                const email = document.getElementById('email').value;
+                const phone = document.getElementById('phone').value;
+                const currency = document.getElementById('currency').value;
+
+                return { name, surname, email, phone, currency };
+            }
+
+            // Register user, create wallet, and store data locally
+            registerButton.addEventListener('click', async () => {
+                userData = getUserDetails();
+
+                // Validate user input
+                if (!userData.name || !userData.surname || !userData.email || !userData.phone || !userData.currency) {
+                    alert("Please enter all the required fields (Name, Surname, Email, Phone, Currency)");
+                    return;
+                }
+
+                try {
+                    console.log("Creating a new wallet...");
+
+                    // Use XRP Testnet Faucet API to create and fund a wallet
+                    const response = await fetch('https://faucet.altnet.rippletest.net/accounts', {
+                        method: 'POST',
+                    });
+                    const walletData = await response.json();
+                    console.log("Full Wallet Data:", walletData);  // Log the full response
+
+                    // Extract wallet address and seed (secret key)
+                    const wallet = walletData.account;
+                    const seed = walletData.seed;
+
+                    // Link wallet to user data
+                    userData.walletAddress = wallet.address;
+                    userData.walletSeed = seed;
+
+                    // Display wallet details
+                    walletInfoSection.style.display = 'block';
+                    walletAddressElement.textContent = wallet.address;
+                    walletSecretElement.textContent = seed;  // Correctly display the secret key from seed
+
+                    // Fetch and display wallet balance
+                    const balanceXRP = walletData.amount;  // Use walletData.amount for balance
+
+                    // Convert balance to preferred currency
+                    let balanceFiat = balanceXRP;
+                    if (userData.currency === "USD") {
+                        balanceFiat = (balanceXRP * 0.5226).toFixed(2) + " USD";
+                    } else if (userData.currency === "ZAR") {
+                        balanceFiat = (balanceXRP * 9.2463).toFixed(2) + " ZAR";
+                    }
+                    walletBalanceElement.textContent = balanceFiat;
+                    
+                    console.log("Wallet Balance:", balanceFiat);
+
+                    alert("Registration successful! New wallet created. Remember to save your secret securely.");
+
+                    // Show user information popup
+                    showUserInfoPopup(userData, balanceFiat);
+
+                    // Store user data in a database
+                    storeUserData(userData);
+                } catch (error) {
+                    console.error("Error creating wallet: ", error);
+                    alert("Failed to create wallet. Please try again.");
+                }
+            });
+
+            // Function to store user data in a database
+            function storeUserData(data) {
+                // Send data to backend API
+                fetch('http://localhost:5000/api/users', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('User data stored successfully:', data);
+                })
+                .catch(error => {
+                    console.error('Error storing user data:', error);
+                });
+            }
+
+            // Function to show user information in a popup
+            function showUserInfoPopup(userData, balanceFiat) {
+                alert(`
+                    Name: ${userData.name}
+                    Surname: ${userData.surname}
+                    Email: ${userData.email}
+                    Phone: ${userData.phone}
+                    Preferred Currency: ${userData.currency}
+
+                    Wallet Address: ${userData.walletAddress}
+                    Wallet Balance: ${balanceFiat}
+
+                    Secret Key (IMPORTANT!): ${userData.walletSeed}
+                    Please keep your secret key safe and do not share it with anyone.
+                `);
+            }
+
+            // Retrieve wallet for existing user
+            existingUserButton.addEventListener('click', async () => {
+                const secretKey = document.getElementById('existing-secret-key').value;
+                if (!secretKey) {
+                    alert("Please enter your secret key.");
+                    return;
+                }
+
+                try {
+                    console.log("Retrieving wallet for existing user...");
+                    const wallet = xrpl.Wallet.fromSeed(secretKey);
+                    userData.walletAddress = wallet.address;
+                    userData.walletSeed = secretKey;
+
+                    // Fetch wallet balance
+                    const client = new xrpl.Client("wss://s.altnet.rippletest.net:51233");
+                    await client.connect();
+                    const response = await client.request({
+                        command: "account_info",
+                        account: wallet.address,
+                        ledger_index: "validated"
+                    });
+                    const balanceXRP = (response.result.account_data.Balance / 1000000).toFixed(2);
+
+                    // Convert balance to preferred currency (default to USD if unknown)
+                    let balanceFiat = balanceXRP;
+                    const currency = "USD";
+                    if (currency === "USD") {
+                        balanceFiat = (balanceXRP * 0.5226).toFixed(2) + " USD";
+                    } else if (currency === "ZAR") {
+                        balanceFiat = (balanceXRP * 9.2463).toFixed(2) + " ZAR";
+                    }
+                    walletBalanceElement.textContent = balanceFiat;
+                    walletAddressElement.textContent = wallet.address;
+                    walletSecretElement.textContent = secretKey;
+                    walletInfoSection.style.display = 'block';
+
+                    await client.disconnect();
+                    console.log("Wallet retrieved successfully.");
+                } catch (error) {
+                    console.error("Error retrieving wallet: ", error);
+                    alert("Failed to retrieve wallet. Please check your secret key and try again.");
+                }
+            });
+
+            // Deposit more funds into the wallet using XRP Testnet Faucet
+            depositButton.addEventListener('click', async () => {
+                try {
+                    console.log("Depositing funds to the wallet...");
+
+                    // Use XRP Testnet Faucet API to fund the existing wallet
+                    const response = await fetch('https://faucet.altnet.rippletest.net/accounts', {
+                        method: 'POST',
+                    });
+                    const walletData = await response.json();
+                    console.log("Deposit Response:", walletData);  // Log the full response
+
+                    const additionalBalanceXRP = walletData.amount;
+
+                    // Convert balance to preferred currency
+                    let additionalBalanceFiat = additionalBalanceXRP;
+                    if (userData.currency === "USD") {
+                        additionalBalanceFiat = (additionalBalanceXRP * 0.5226).toFixed(2) + " USD";
+                    } else if (userData.currency === "ZAR") {
+                        additionalBalanceFiat = (additionalBalanceXRP * 9.2463).toFixed(2) + " ZAR";
+                    }
+
+                    // Update wallet balance display
+                    const currentBalanceFiat = parseFloat(walletBalanceElement.textContent.split(" ")[0]);
+                    const updatedBalanceFiat = (currentBalanceFiat + parseFloat(additionalBalanceFiat)).toFixed(2);
+                    walletBalanceElement.textContent = `${updatedBalanceFiat} ${userData.currency}`;
+
+                    alert("Funds deposited successfully!");
+
+                } catch (error) {
+                    console.error("Error depositing funds: ", error);
+                    alert("Failed to deposit funds. Please try again.");
+                }
+            });
+
+            // Deposit funds using MoonPay
+            depositCardButton.addEventListener('click', () => {
+                console.log("Redirecting to MoonPay...");
+                
+                // Redirect user to MoonPay with pre-filled information
+                const moonpaySdk = window.MoonPayWebSdk.init({
+                    flow: "buy",
+                    environment: "sandbox",
+                    variant: "overlay",
+                    params: {
+                        apiKey: "pk_test_8v5c0U65vmujfNeSrA1b3hQSgTd9iE2", // Replace with your MoonPay publishable API key
+                        baseCurrencyCode: userData.currency.toLowerCase(),
+                        defaultCurrencyCode: "xrp",
+                        walletAddress: userData.walletAddress
+                    }
+                });
+                
+                // Open MoonPay widget
+                moonpaySdk.show();
+            });
+
+            // Redirect to transaction page
+            sendReceiveButton.addEventListener('click', () => {
+                window.location.href = 'transaction.html';
+            });
+        });
+    </script>
+
+</head>
+<body>
+    <div class="container">
+        <!-- Logo Section -->
+        <img src="Color logo - no background.png" alt="RemittEase Logo" class="logo">
+
+        <h1>Get Started!</h1>
+
+        <!-- User Registration and Wallet Creation Section -->
+        <div class="section">
+            <h2>Register User & Create Wallet</h2>
+            <input type="text" id="name" placeholder="First Name">
+            <input type="text" id="surname" placeholder="Last Name">
+            <input type="email" id="email" placeholder="Email">
+            <input type="tel" id="phone" placeholder="Phone Number">
+            <select id="currency">
+                <option value="" disabled selected>Select Preferred Currency</option>
+                <option value="USD">USD</option>
+                <option value="ZAR">ZAR</option>
+            </select>
+            <button id="register-user">Register & Create Wallet</button>
+        </div>
+
+        <!-- Existing User Section -->
+        <div class="section">
+            <h2>Existing User</h2>
+            <input type="text" id="existing-secret-key" placeholder="Enter Your Secret Key">
+            <button id="existing-user">Access Wallet</button>
+        </div>
+
+        <!-- Wallet Information Section -->
+        <div id="wallet-info" class="wallet-info" style="display: none;">
+            <h2>Your Wallet Information</h2>
+            <p><strong>Wallet Address:</strong></p>
+            <pre id="wallet-address"></pre>
+
+            <p><strong>Wallet Balance:</strong></p>
+            <pre id="wallet-balance"></pre>
+
+            <p><strong>Secret Key (Seed):</strong> (Store this securely!)</p>
+            <pre id="wallet-secret"></pre>
+
+            <!-- Deposit Funds Section -->
+            <h2>Deposit Funds</h2>
+            <button id="deposit-funds">Deposit More Funds via Faucet</button>
+            <button id="deposit-card-funds">Deposit via Credit/Debit Card (MoonPay)</button>
+
+            <!-- Send/Receive Funds Section -->
+            <button id="send-receive-now">Send/Receive Now!</button>
+        </div>
+    </div>
+</body>
+</html>
